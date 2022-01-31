@@ -328,3 +328,111 @@ def quadratic_discriminant_analysis(input_data, predictors, outputs):
         predictions_.append(categories[category_ind])
     
     return np.array(predictions_)
+
+
+# decision trees
+def find_s(x_in, y_ref, s):
+    """
+    Function determines 's' parameter for indicidual predictor by minimization of RSS.
+    """
+    RSS_min = np.inf
+    s_min = min(s)
+    for i in s:
+        R1_ind = np.argwhere(x_in<i)
+        R2_ind = np.argwhere(x_in>=i)
+        R1_mean = np.average(y_ref[R1_ind])
+        R2_mean = np.average(y_ref[R2_ind])
+        R1_RSS = sum((x_in[R1_ind]-R1_mean)**2)
+        R2_RSS = sum((x_in[R2_ind]-R2_mean)**2)
+        RSS_s = R1_RSS + R2_RSS
+        if RSS_s<RSS_min:
+            RSS_min = RSS_s
+            s_min = i
+    return RSS_min, s_min
+
+
+def split(x_in, y_ref, s_partitions):
+    """
+    Function finds split parameters for individual split according to recursice binary splitting method.
+    x_in: pandas dataframe of input predictors
+    y_ref: pandas series of reference responses
+    s_partitions: number of partition between min and max predicor values when searching for minimum s value for individual predictor.
+    
+    return: index of predictor with min RSS, s_value for predictor with min RSS.
+    """
+    pred_list = list(x_in.columns)
+    ref = np.array(y_ref)
+    RSS_min = []
+    s_min = []
+    for i in pred_list:
+        d_series = np.array(x_in[i])
+        s_values = np.linspace(min(d_series), max(d_series),s_partitions)[1:-1] # s values for individual predictor
+        RSS_, s_ = find_s(d_series, ref, s_values)
+        RSS_min.append(RSS_)
+        s_min.append(s_)
+    min_ind = np.argmin(RSS_min)
+    pred_min = pred_list[min_ind]
+    s_min = s_min[min_ind]
+    return pred_min, s_min
+
+
+def initial(x_in):
+    predictors = list(x_in.columns)
+    R_dict = {}
+    for i in predictors:
+        R_dict[i] = [min(x_in[i]),max(x_in[i])]
+    return R_dict
+
+# ne dela še
+def decision_tree(x_in, y_ref, s_partitions, R_size_max):
+    R_list = {'R0': initial(x_in)}
+    R_x_data = {'R0':x_in}
+    R_x_temp = R_x_data.copy()
+    R_y_data = {'R0':y_ref}
+    predictors = list(x_in.columns)
+    R_size=np.inf
+    name_ = 0
+    while R_size > R_size_max:
+        sizes=[]
+        for j, i in enumerate(R_x_temp):
+            print(j,i)
+            if R_x_data[i].shape[0]>R_size_max:
+                pred_, s_ = split(R_x_data[i], R_y_data[i], s_partitions=s_partitions)
+                old = R_list[i][pred_].copy()
+                name_+=1
+                R_list[f'R{name_}'] = R_list[i].copy()
+                R_list[f'R{name_}'][pred_] = [s_, old[1]]
+                mask_1 = list(((R_x_data[i][pred_]>=R_list[f'R{name_}'][pred_][0]) & (R_x_data[i][pred_]<=R_list[f'R{name_}'][pred_][1])))
+                R_x_data[f'R{name_}'] = R_x_data[i][mask_1]
+                R_y_data[f'R{name_}'] = R_y_data[i][mask_1]
+                size_0 = R_x_data[f'R{name_}'].shape[0]
+                if size_0 == 0:
+                    del R_x_data[f'R{name_}']
+                    del R_y_data[f'R{name_}']
+                else:
+                    sizes.append(size_0)
+                name_+=1
+                R_list[f'R{name_}'] = R_list[i].copy()
+                R_list[f'R{name_}'][pred_] = [old[0],s_]
+                mask_2 = list(((R_x_data[i][pred_]>=R_list[f'R{name_}'][pred_][0]) & (R_x_data[i][pred_]<R_list[f'R{name_}'][pred_][1])))
+                R_x_data[f'R{name_}'] = R_x_data[i][mask_2]
+                R_y_data[f'R{name_}'] = R_y_data[i][mask_2]
+                size_1 = R_x_data[f'R{name_}'].shape[0]
+                if size_1 ==0:
+                    del R_x_data[f'R{name_}']
+                    del R_y_data[f'R{name_}']
+                else:
+                    sizes.append(size_1)
+                del R_list[i]
+                del R_x_data[i]
+                del R_y_data[i]
+            else:
+                sizes.append(R_x_data[i].shape[0])
+                pass
+        R_x_temp = R_x_data.copy()
+        R_size=max(sizes)
+        print(list(R_list.keys()), sizes, sum(sizes))
+        print('-----------------------------------------')
+    print(R_list)
+    
+    return R_list
