@@ -32,6 +32,19 @@ def mean(X):
     return sum(X)/len(X)
 
 
+def RSS(y_pred, y_real):
+    """Function calculates and returns the Residual Sum of Squares (RSS).
+
+    Args:
+        y_pred (np.array): numeric array of predicted values
+        y_real (np.array): numeric array of actual values
+
+    Returns: RSS for input data
+    """
+    return sum((y_real-y_pred)**2)
+
+
+
 def stdev(X, type_='sample'):
     """
     Function calculates standard deviation for the data set X.
