@@ -8,6 +8,7 @@ import seaborn as sns
 from mpl_toolkits.mplot3d import Axes3D
 import prettytable
 from tqdm.notebook import tqdm
+import random
 
 
 def MSE(y_pred, y_real):
@@ -335,19 +336,22 @@ def find_s(x_in, y_ref, s):
     """
     Function determines 's' parameter for indicidual predictor by minimization of RSS.
     """
-    RSS_min = np.inf
+    RSS_min = np.array([np.inf])
     s_min = min(s)
     for i in s:
         R1_ind = np.argwhere(x_in<i)
         R2_ind = np.argwhere(x_in>=i)
-        R1_mean = np.average(y_ref[R1_ind])
-        R2_mean = np.average(y_ref[R2_ind])
-        R1_RSS = sum((x_in[R1_ind]-R1_mean)**2)
-        R2_RSS = sum((x_in[R2_ind]-R2_mean)**2)
-        RSS_s = R1_RSS + R2_RSS
-        if RSS_s<RSS_min:
-            RSS_min = RSS_s
-            s_min = i
+        if (len(R1_ind) !=0) & (len(R2_ind)!= 0):
+            R1_mean = np.average(y_ref[R1_ind])
+            R2_mean = np.average(y_ref[R2_ind])
+            R1_RSS = sum((x_in[R1_ind]-R1_mean)**2)
+            R2_RSS = sum((x_in[R2_ind]-R2_mean)**2)
+            RSS_s = R1_RSS + R2_RSS
+            if RSS_s<RSS_min:
+                RSS_min = RSS_s
+                s_min = i
+        else:
+            pass
     return RSS_min, s_min
 
 
@@ -436,3 +440,29 @@ def decision_tree(x_in, y_ref, s_partitions, R_size_max):
     print(R_list)
     
     return R_list
+
+
+# k-fold Cross Validation
+
+def k_fold_split(input_, output_, k):
+    indices = list(np.arange(input_.shape[0], dtype=int))
+    fold_size = int(input_.shape[0]/k)
+    input_folds = []
+    output_folds = []
+    for i in range(k-1):
+        k_ind = np.zeros(fold_size, dtype=int)
+        for j in range(fold_size):
+            k_ind[j] = random.choice(indices)
+            indices.remove(k_ind[j])
+        input_folds.append(input_[k_ind])
+        output_folds.append(output_[k_ind])
+    input_folds.append(input_[indices])
+    output_folds.append(output_[indices])
+    return np.array(input_folds), np.array(output_folds)
+
+
+def classification_error_rate(pred_, ref_):
+    n = ref_.shape[0]
+    return 1/n*(n-np.count_nonzero(pred_==ref_))
+
+    
