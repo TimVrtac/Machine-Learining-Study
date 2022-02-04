@@ -45,6 +45,19 @@ def RSS(y_pred, y_real):
     return sum((y_real-y_pred)**2)
 
 
+def classification_error_rate(pred_, ref_):
+    """Functions calculates classification error rate.
+
+    Args:
+        pred_ (numpy array): numpy array of predictions
+        ref_ (numpy array): numpy array of reference output values
+
+    Returns:
+        float: classification error rate
+    """
+    n = ref_.shape[0]
+    return 1/n*(n-np.count_nonzero(pred_==ref_))
+
 
 def stdev(X, type_='sample'):
     """
@@ -119,19 +132,21 @@ def confusion_matrix(predictions, references, print_=False, ROC_=False):
     specificity = TN/(TN + FP)
     overall = (TP + TN)/(TP+TN+FP+FN)
     table = prettytable.PrettyTable()
-    table.field_names = ['True status','No','Yes']
-    table.add_rows([['Prediciton','',''],
-               ['No', f' TN = {TN}', f' FN = {FN}'],
-               ['Yes', f' FP = {FP}', f' TP = {TP}'],
-                  ['', f'specificity = {specificity*100:.2f} %', f'sensitivity = {sensitivity*100:.2f} %']])
+    table.field_names = ['True status','No','Yes', 'Sums']
+    table.add_rows([['Prediciton','','',''],
+               ['No', f' TN = {TN}', f' FN = {FN}',TN + FN],
+               ['Yes', f' FP = {FP}', f' TP = {TP}', TP + FP],
+               ['', f'specificity = {specificity*100:.2f} %', f'sensitivity = {sensitivity*100:.2f} %',''],
+               ['Sums', TN + FN, FN + TP, TN+FN+TP+FP]])
     if print_:
         print(table)
 
     return table, sensitivity, specificity, overall
 
 
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 # STATISTICAL LEARNING
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# K-nearest neighbors (KNN)
 def KNN(test_point_, input_data_, output_data, K, normalize=False, show=False, dummy=False):
     """
     Function applies K Nearest Neighbors method.
@@ -193,6 +208,75 @@ def KNN(test_point_, input_data_, output_data, K, normalize=False, show=False, d
     return count[0][np.argmax(count[1])]
 
 
+    # k-fold Cross Validation
+def k_fold_split(input_, output_, k):
+    """Function splits input and output data for the purpose of k-fold Cross Validation.
+
+    Args:
+        input_ (numpy array): numeric array of input values
+        output_ (numpy array): numeric array of output values
+        k (int): number of folds
+
+    Returns:
+        list of numpy arrays: list of input folds
+        list of numpy arrays: list of output folds
+    """
+    indices = list(np.arange(input_.shape[0], dtype=int))
+    fold_size = int(input_.shape[0]/k)
+    input_folds = []
+    output_folds = []
+    for i in range(k-1):
+        k_ind = np.zeros(fold_size, dtype=int)
+        for j in range(fold_size):
+            k_ind[j] = random.choice(indices)
+            indices.remove(k_ind[j])
+        input_folds.append(np.array(input_[k_ind]))
+        output_folds.append(np.array(output_[k_ind]))
+    input_folds.append(input_[indices])
+    output_folds.append(output_[indices])
+    return input_folds, output_folds
+
+
+def k_fold_CV_for_KNN_classification(inputs_, outputs_, k=10, K=np.arange(1,10), find_K_opt=False):
+    """Function performs k-fold Cross Validation for the purpose of optimal K value determination in KNN machine learning method.
+
+    Args:
+        inputs_ (numpy array): numeric array of input values (n×p matrix) where n is sample size and p is number of predictors.
+        outputs_ (numpy array): numeric array of output values
+        k (int, optional): number of folds. Defaults to 10.
+        K (list/numpy array, optional): Possible K values. Defaults to np.arange(1,10).
+        find_K_opt (bool, optional): if True the optimal K value is returned. Defaults to False.
+
+    Returns:
+        list: error rates corresponding to the input K values
+        int (optional): optimal K value
+    """
+    # data split
+    input_f, output_f = k_fold_split(inputs_, outputs_, k=k)
+    error_rates = []
+    for k_ in tqdm(K, desc=f'Main loop'):
+        errors_ = []
+        for i in tqdm(range(k), desc=f'loop for K = {k_}: ', leave=False):
+            k_pred = np.zeros(input_f[i].shape[0])
+            pred_fold_ = input_f[i]
+            ref_fold_ = output_f[i]
+            ind_list = list(np.arange(k))
+            ind_list.remove(i)
+            input_folds_ = input_f[ind_list]
+            input_folds_ = np.concatenate(input_folds_.squeeze(),axis=0)
+            output_folds_ = output_f[ind_list]
+            output_folds_ = np.concatenate(output_folds_.squeeze(),axis=0)
+            for j in range(input_f[i].shape[0]):
+                k_pred[j] = KNN(pred_fold_[j], input_folds_, output_folds_, K=k_, normalize=True)
+            errors_.append(classification_error_rate(k_pred, ref_fold_))
+        error_rates.append(np.average(errors_))
+    if find_K_opt:
+        K_opt = K[np.argmin(np.array(error_rates))]
+        return error_rates, K_opt
+    return error_rates
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------
 # Linear Discriminant Analysis (LDA)
 def lin_discriminant_function(x, μ, Σ, π):
     """Function calculates the value of linear disciriminant function for given x.
@@ -280,6 +364,7 @@ def LDA_decision_boundary_mod(input_data, predictors, outputs,
     return np.array(predictions_)
 
 
+# ----------------------------------------------------------------------------------------------------------------------------------------------
 # Quadratic Discriminant Analysis (QDA)
 def quad_discriminant_function(x, μ, Σ, π):
     """Function calculates the value of quadratic disciriminant function for given x.
@@ -329,140 +414,4 @@ def quadratic_discriminant_analysis(input_data, predictors, outputs):
         predictions_.append(categories[category_ind])
     
     return np.array(predictions_)
-
-
-# decision trees
-def find_s(x_in, y_ref, s):
-    """
-    Function determines 's' parameter for indicidual predictor by minimization of RSS.
-    """
-    RSS_min = np.array([np.inf])
-    s_min = min(s)
-    for i in s:
-        R1_ind = np.argwhere(x_in<i)
-        R2_ind = np.argwhere(x_in>=i)
-        if (len(R1_ind) !=0) & (len(R2_ind)!= 0):
-            R1_mean = np.average(y_ref[R1_ind])
-            R2_mean = np.average(y_ref[R2_ind])
-            R1_RSS = sum((x_in[R1_ind]-R1_mean)**2)
-            R2_RSS = sum((x_in[R2_ind]-R2_mean)**2)
-            RSS_s = R1_RSS + R2_RSS
-            if RSS_s<RSS_min:
-                RSS_min = RSS_s
-                s_min = i
-        else:
-            pass
-    return RSS_min, s_min
-
-
-def split(x_in, y_ref, s_partitions):
-    """
-    Function finds split parameters for individual split according to recursice binary splitting method.
-    x_in: pandas dataframe of input predictors
-    y_ref: pandas series of reference responses
-    s_partitions: number of partition between min and max predicor values when searching for minimum s value for individual predictor.
-    
-    return: index of predictor with min RSS, s_value for predictor with min RSS.
-    """
-    pred_list = list(x_in.columns)
-    ref = np.array(y_ref)
-    RSS_min = []
-    s_min = []
-    for i in pred_list:
-        d_series = np.array(x_in[i])
-        s_values = np.linspace(min(d_series), max(d_series),s_partitions)[1:-1] # s values for individual predictor
-        RSS_, s_ = find_s(d_series, ref, s_values)
-        RSS_min.append(RSS_)
-        s_min.append(s_)
-    min_ind = np.argmin(RSS_min)
-    pred_min = pred_list[min_ind]
-    s_min = s_min[min_ind]
-    return pred_min, s_min
-
-
-def initial(x_in):
-    predictors = list(x_in.columns)
-    R_dict = {}
-    for i in predictors:
-        R_dict[i] = [min(x_in[i]),max(x_in[i])]
-    return R_dict
-
-# ne dela še
-def decision_tree(x_in, y_ref, s_partitions, R_size_max):
-    R_list = {'R0': initial(x_in)}
-    R_x_data = {'R0':x_in}
-    R_x_temp = R_x_data.copy()
-    R_y_data = {'R0':y_ref}
-    predictors = list(x_in.columns)
-    R_size=np.inf
-    name_ = 0
-    while R_size > R_size_max:
-        sizes=[]
-        for j, i in enumerate(R_x_temp):
-            print(j,i)
-            if R_x_data[i].shape[0]>R_size_max:
-                pred_, s_ = split(R_x_data[i], R_y_data[i], s_partitions=s_partitions)
-                old = R_list[i][pred_].copy()
-                name_+=1
-                R_list[f'R{name_}'] = R_list[i].copy()
-                R_list[f'R{name_}'][pred_] = [s_, old[1]]
-                mask_1 = list(((R_x_data[i][pred_]>=R_list[f'R{name_}'][pred_][0]) & (R_x_data[i][pred_]<=R_list[f'R{name_}'][pred_][1])))
-                R_x_data[f'R{name_}'] = R_x_data[i][mask_1]
-                R_y_data[f'R{name_}'] = R_y_data[i][mask_1]
-                size_0 = R_x_data[f'R{name_}'].shape[0]
-                if size_0 == 0:
-                    del R_x_data[f'R{name_}']
-                    del R_y_data[f'R{name_}']
-                else:
-                    sizes.append(size_0)
-                name_+=1
-                R_list[f'R{name_}'] = R_list[i].copy()
-                R_list[f'R{name_}'][pred_] = [old[0],s_]
-                mask_2 = list(((R_x_data[i][pred_]>=R_list[f'R{name_}'][pred_][0]) & (R_x_data[i][pred_]<R_list[f'R{name_}'][pred_][1])))
-                R_x_data[f'R{name_}'] = R_x_data[i][mask_2]
-                R_y_data[f'R{name_}'] = R_y_data[i][mask_2]
-                size_1 = R_x_data[f'R{name_}'].shape[0]
-                if size_1 ==0:
-                    del R_x_data[f'R{name_}']
-                    del R_y_data[f'R{name_}']
-                else:
-                    sizes.append(size_1)
-                del R_list[i]
-                del R_x_data[i]
-                del R_y_data[i]
-            else:
-                sizes.append(R_x_data[i].shape[0])
-                pass
-        R_x_temp = R_x_data.copy()
-        R_size=max(sizes)
-        print(list(R_list.keys()), sizes, sum(sizes))
-        print('-----------------------------------------')
-    print(R_list)
-    
-    return R_list
-
-
-# k-fold Cross Validation
-
-def k_fold_split(input_, output_, k):
-    indices = list(np.arange(input_.shape[0], dtype=int))
-    fold_size = int(input_.shape[0]/k)
-    input_folds = []
-    output_folds = []
-    for i in range(k-1):
-        k_ind = np.zeros(fold_size, dtype=int)
-        for j in range(fold_size):
-            k_ind[j] = random.choice(indices)
-            indices.remove(k_ind[j])
-        input_folds.append(input_[k_ind])
-        output_folds.append(output_[k_ind])
-    input_folds.append(input_[indices])
-    output_folds.append(output_[indices])
-    return np.array(input_folds), np.array(output_folds)
-
-
-def classification_error_rate(pred_, ref_):
-    n = ref_.shape[0]
-    return 1/n*(n-np.count_nonzero(pred_==ref_))
-
     
