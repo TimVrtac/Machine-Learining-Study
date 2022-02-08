@@ -4,6 +4,8 @@ import copy
 import matplotlib.pyplot as plt
 import my_statistics as ms
 from tqdm.notebook import tqdm
+import math
+import random
 
 
 class DecisionTree:
@@ -35,9 +37,11 @@ class DecisionTree:
         self.original_heritage = self.heritage
         self.bagging_model = {}
         self.bagging_ref = {}
+        self.random_f_model = {}
+        self.random_f_ref = {}
         self.B = None
 
-    def generate_tree(self, training_inputs_, training_outputs_):
+    def generate_tree(self, training_inputs_, training_outputs_, m=None):
         """Function generates decision tree on the basis od input data
 
         Returns:
@@ -58,7 +62,7 @@ class DecisionTree:
             sizes = []
             for j, i in enumerate(R_x_temp):
                 if R_x_data[i].shape[0] > self.max_leaf_size:
-                    pred_, s_ = self.split(R_x_data[i], R_y_data[i])
+                    pred_, s_ = self.split(R_x_data[i], R_y_data[i], m=m)
                     old = copy.deepcopy(tree[i][pred_])
                     name_ += 1
                     tree[f'R{name_}'] = copy.deepcopy(tree[i])
@@ -90,6 +94,7 @@ class DecisionTree:
                     R_y_data[f'R{name_}'] = R_y_data[i][mask_2]
                     size_1 = R_x_data[f'R{name_}'].shape[0]
                     if size_1 == 0:
+                        del tree[f'R{name_}']
                         del R_x_data[f'R{name_}']
                         del R_y_data[f'R{name_}']
                     else:
@@ -102,7 +107,7 @@ class DecisionTree:
 
             R_x_temp = R_x_data.copy()
             R_size = max(sizes)
-            #print(sizes)
+            # print(sizes)
         Y_outputs = {}
         for j in tree:
             if self.criterion == 'RSS':
@@ -120,17 +125,27 @@ class DecisionTree:
             R_dict[i] = [min(self.training_inputs[i]), max(self.training_inputs[i])]
         return R_dict
 
-    def split(self, x_node, y_node):
+    def split(self, x_node, y_node, m=None):
         """
         Function finds split parameters for individual split according to recursive binary splitting method.
 
         Args:
             x_node: pandas dataframe of input predictors for individual node
             y_node: pandas series of reference responses for individual node
+            m: number of predictors taken into account in individual split
         
         return: index of predictor with min RSS, s_value for predictor with min RSS.
         """
         pred_list = list(x_node.columns)
+        if m is None:
+            pass
+        else:
+            pred_l_temp = pred_list.copy()
+            pred_m = []
+            for i in range(m):
+                pred_m.append(random.choice(pred_l_temp))
+                pred_l_temp.remove(pred_m[i])
+            pred_list = pred_m
         ref = np.array(y_node)
         err_min = []
         s_min = []
@@ -522,29 +537,32 @@ class DecisionTree:
         bootstrap_ind = self.bootstrapping(B=B)
 
         for i in tqdm(range(B)):
+            # print(i)
             self.bagging_model[i], self.bagging_ref[i], _, _ = self.generate_tree(
                 self.training_inputs.iloc[bootstrap_ind[i, :], :],
                 self.training_outputs[bootstrap_ind[i, :]])
 
-    def bagging_predict(self, input_):
+    def predict_bag_rf(self, input_, model, ref_):
         """
-        Function makes predictions for input predictor values.
-        Args:
-            input_: input predictor value
-        Returns: numeric array of predictions, dictionary of form {class:[output values]
-        """
+                Function makes predictions for input predictor values.
+                Args:
+                    input_: input predictor value
+                    model: model obtained from bagging or random forest method
+                    ref_: reference values obtained from bagging or random forest method
+                Returns: numeric array of predictions, dictionary of form {class:[output values]
+                """
         # dict for input classification
         Y_pred = np.zeros((self.B, input_.shape[0]))
         predictors = list(input_.columns)
 
         for b in tqdm(range(self.B)):
-            for i in self.bagging_model[b]:
+            for i in model[b]:
                 mask = input_.copy()
                 for j in predictors:
-                    mask[j] = (input_[j] >= self.bagging_model[b][i][j][0]) & \
-                              (input_[j] <= self.bagging_model[b][i][j][1])
+                    mask[j] = (input_[j] >= model[b][i][j][0]) & \
+                              (input_[j] <= model[b][i][j][1])
                 row_ind = np.argwhere(np.array(mask.all(axis=1)) == True)
-                Y_pred[b, row_ind] = self.bagging_ref[b][i]
+                Y_pred[b, row_ind] = ref_[b][i]
 
         Y_pred_ = np.ones(Y_pred.shape[1])
         if self.criterion == 'RSS':
@@ -555,6 +573,9 @@ class DecisionTree:
             for i in range(Y_pred.shape[1]):
                 Y_pred_[i] = Y_pred[np.argmax(np.unique(Y_pred[:, i], return_counts=True)[1]), i]
         return Y_pred_
+
+    def bagging_predict(self, input_):
+        return self.predict_bag_rf(input_=input_, model=self.bagging_model, ref_=self.bagging_ref)
 
     def bootstrapping(self, B):
         """
@@ -572,6 +593,32 @@ class DecisionTree:
         return bootstrap_ind
 
     # TODO add error estimation (Out-Of-Bag / OOB)
+    # Random Forests
+    def random_forest(self, B, m=None):
+        """
+        Function generates series of decision trees using bootstrapped training data.
+        Args:
+            B: number of trees generated (int)
+            m: number of predictors in individual split (int)
+
+        Returns: list of decision trees
+        """
+        if m is None:
+            m = math.ceil(np.sqrt(len(self.training_inputs.columns)))
+
+        self.B = B
+        self.random_f_model = {}
+        self.random_f_ref = {}
+        bootstrap_ind = self.bootstrapping(B=B)
+
+        for i in tqdm(range(B)):
+            # print(i)
+            self.random_f_model[i], self.random_f_ref[i], _, _ = self.generate_tree(
+                self.training_inputs.iloc[bootstrap_ind[i, :], :],
+                self.training_outputs[bootstrap_ind[i, :]], m=m)
+
+    def random_forest_predict(self, input_):
+        return self.predict_bag_rf(input_=input_, model=self.random_f_model, ref_=self.random_f_ref)
 
 
 def k_fold_CV_for_decision_tree_pruning(inputs_, outputs_, alpha, criterion,
@@ -608,20 +655,32 @@ def k_fold_CV_for_decision_tree_pruning(inputs_, outputs_, alpha, criterion,
     return error_rates
 
 
-#h_df = pd.read_csv('C:/Users/timvr/Documents/Doktorat/Introduction to statistical Learning/Gradivo/Heart.csv')
-#h_df.drop(labels='Unnamed: 0', axis=1, inplace=True)
-#features = ['Age', 'Sex', 'RestBP', 'Chol', 'Fbs', 'RestECG', 'MaxHR',
-#            'ExAng', 'Oldpeak', 'Slope', 'Ca']
-#HD_dummy = np.zeros(h_df.shape[0])
-#HD_dummy[h_df.AHD == 'Yes'] = 1
-#HD_dummy[h_df.AHD == 'No'] = 0
-#my_tree = DecisionTree(h_df[features], HD_dummy, s_div=20, max_leaf_size=10, criterion='Gini')
-#y_cl_pred, y_cl = my_tree.predict(h_df[features][::2])
-#my_tree.bagging(B=100)
-#my_tree.bagging_predict(h_df[features][::2])
+h_df = pd.read_csv('C:/Users/timvr/Documents/Doktorat/Introduction to statistical Learning/Gradivo/Heart.csv')
+h_df.drop(labels='Unnamed: 0', axis=1, inplace=True)
+features = ['Age', 'Sex', 'RestBP', 'Chol', 'Fbs', 'RestECG', 'MaxHR',
+            'ExAng', 'Oldpeak', 'Slope', 'Ca']
+HD_dummy = np.zeros(h_df.shape[0])
+HD_dummy[h_df.AHD == 'Yes'] = 1
+HD_dummy[h_df.AHD == 'No'] = 0
+my_tree = DecisionTree(h_df[features][1::2], HD_dummy[1::2], s_div=20, max_leaf_size=10, criterion='Gini')
+
+# def boosting(x_in, y_in, d, B):
+
+#    tree = DecisionTree()
+# y_cl_pred, y_cl = my_tree.predict(h_df[features][::2])
+# my_tree.bagging(B=30)
+# y_pred_bagging = my_tree.bagging_predict(h_df[features][::2])
+# ms.confusion_matrix(y_pred_bagging, HD_dummy[::2], print_=True)
+# print(f'Error rate: {ms.classification_error_rate(y_pred_bagging, HD_dummy[::2]):.3f}')
+# my_tree.random_forest(B=100)
+# y_pred_rf = my_tree.random_forest_predict(h_df[features][::2])
+# ms.confusion_matrix(y_pred_rf, HD_dummy[::2], print_=True)
+# print(f'Error rate: {ms.classification_error_rate(y_pred_rf, HD_dummy[::2]):.3f}')
 # alphas = [0., 0.5052631578947369, 0.5894736842105263, 0.7578947368421053]
 # sizes_ = [58, 56, 40, 28]
 # r_size_ = 10
 
-# errors_ = k_fold_CV_for_decision_tree_pruning(h_df[features], HD_dummy, k=5, alpha=alphas, sizes=sizes_, r_size=r_size_,
-#                                              criterion='gini')
+# errors_ = k_fold_CV_for_decision_tree_pruning(h_df[features], HD_dummy, k=5, alpha=alphas, sizes=sizes_,
+#                                               r_size=r_size_, criterion='gini')
+
+
