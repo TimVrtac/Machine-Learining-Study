@@ -27,13 +27,17 @@ class DecisionTree:
         self.s_div = s_div
         self.criterion = criterion
         self.max_leaf_size = max_leaf_size
-        self.tree, self.y_ref, self.y_data_cl, self.heritage = self.generate_tree()
+        self.tree, self.y_ref, self.y_data_cl, self.heritage = self.generate_tree(self.training_inputs,
+                                                                                  self.training_outputs)
         self.original_tree = self.tree
         self.original_y_ref = self.y_ref
         self.original_y_data_cl = self.y_data_cl
         self.original_heritage = self.heritage
+        self.bagging_model = {}
+        self.bagging_ref = {}
+        self.B = None
 
-    def generate_tree(self):
+    def generate_tree(self, training_inputs_, training_outputs_):
         """Function generates decision tree on the basis od input data
 
         Returns:
@@ -43,9 +47,9 @@ class DecisionTree:
             dict: heritage: dictionary of parents and kids for each node
         """
         tree = {'R0': self.initial()}
-        R_x_data = {'R0': self.training_inputs}
+        R_x_data = {'R0': training_inputs_}
         R_x_temp = copy.deepcopy(R_x_data)
-        R_y_data = {'R0': self.training_outputs}
+        R_y_data = {'R0': training_outputs_}
         R_size = np.inf
         heritage_template = {'parent': [], 'kids': [], 'level': 0}
         heritage = {'R0': copy.deepcopy(heritage_template)}
@@ -95,8 +99,10 @@ class DecisionTree:
                     del R_y_data[i]
                 else:
                     sizes.append(R_x_data[i].shape[0])
+
             R_x_temp = R_x_data.copy()
             R_size = max(sizes)
+            #print(sizes)
         Y_outputs = {}
         for j in tree:
             if self.criterion == 'RSS':
@@ -463,9 +469,10 @@ class DecisionTree:
                 tree_size = size_sc
         return alpha_list, tree_sizes
 
+    # tree size
     def shrink_tree(self, size_goal):
         """
-        Function shrinks tree to the desired size by joining nodes from top to the bottom of the tree
+        Function shrinks tree to the desired size by joining nodes from top to the bottom of the tree.
         Args:
             size_goal: desired tree size (int)
 
@@ -497,6 +504,74 @@ class DecisionTree:
                     pass
         self.tree = new_tree
         self.y_ref = y_avg_temp
+
+    def to_original(self):
+        self.tree = self.original_tree
+        self.y_data_cl = self.original_y_data_cl
+        self.y_ref = self.original_y_ref
+
+    # bagging
+    def bagging(self, B):
+        """
+        Function generates series of decision trees using bootstrapped training data
+        Returns: list of decision trees
+        """
+        self.B = B
+        self.bagging_model = {}
+        self.bagging_ref = {}
+        bootstrap_ind = self.bootstrapping(B=B)
+
+        for i in tqdm(range(B)):
+            self.bagging_model[i], self.bagging_ref[i], _, _ = self.generate_tree(
+                self.training_inputs.iloc[bootstrap_ind[i, :], :],
+                self.training_outputs[bootstrap_ind[i, :]])
+
+    def bagging_predict(self, input_):
+        """
+        Function makes predictions for input predictor values.
+        Args:
+            input_: input predictor value
+        Returns: numeric array of predictions, dictionary of form {class:[output values]
+        """
+        # dict for input classification
+        Y_pred = np.zeros((self.B, input_.shape[0]))
+        predictors = list(input_.columns)
+
+        for b in tqdm(range(self.B)):
+            for i in self.bagging_model[b]:
+                mask = input_.copy()
+                for j in predictors:
+                    mask[j] = (input_[j] >= self.bagging_model[b][i][j][0]) & \
+                              (input_[j] <= self.bagging_model[b][i][j][1])
+                row_ind = np.argwhere(np.array(mask.all(axis=1)) == True)
+                Y_pred[b, row_ind] = self.bagging_ref[b][i]
+
+        Y_pred_ = np.ones(Y_pred.shape[1])
+        if self.criterion == 'RSS':
+            # average value of B bootstrap predictions for regression problems
+            Y_pred_ = np.average(Y_pred, axis=0)
+        else:
+            # most common vote for B bootstrap predictions for classification problems
+            for i in range(Y_pred.shape[1]):
+                Y_pred_[i] = Y_pred[np.argmax(np.unique(Y_pred[:, i], return_counts=True)[1]), i]
+        return Y_pred_
+
+    def bootstrapping(self, B):
+        """
+        Function generates B bootstrap training data sets of size n.
+        Args:
+            B: number of bootstrap training sets
+
+        Returns: numeric array of training observation indices of shape (B×n)
+
+        """
+        n = self.training_inputs.shape[0]
+        bootstrap_ind = np.zeros((B, n), dtype=int)
+        for b in range(B):
+            bootstrap_ind[b, :] = np.random.randint(0, n, n)
+        return bootstrap_ind
+
+    # TODO add error estimation (Out-Of-Bag / OOB)
 
 
 def k_fold_CV_for_decision_tree_pruning(inputs_, outputs_, alpha, criterion,
@@ -533,7 +608,6 @@ def k_fold_CV_for_decision_tree_pruning(inputs_, outputs_, alpha, criterion,
     return error_rates
 
 
-#np.warnings.filterwarnings('error', category=np.VisibleDeprecationWarning)
 #h_df = pd.read_csv('C:/Users/timvr/Documents/Doktorat/Introduction to statistical Learning/Gradivo/Heart.csv')
 #h_df.drop(labels='Unnamed: 0', axis=1, inplace=True)
 #features = ['Age', 'Sex', 'RestBP', 'Chol', 'Fbs', 'RestECG', 'MaxHR',
@@ -541,10 +615,13 @@ def k_fold_CV_for_decision_tree_pruning(inputs_, outputs_, alpha, criterion,
 #HD_dummy = np.zeros(h_df.shape[0])
 #HD_dummy[h_df.AHD == 'Yes'] = 1
 #HD_dummy[h_df.AHD == 'No'] = 0
-## decision_tree(h_df[features], HD_dummy, s_partitions=20, R_size_max=10,
-##                criterion='Gini', plot_=True)
-#alphas = [0., 0.5052631578947369, 0.5894736842105263, 0.7578947368421053]
-#sizes_ = [58, 56, 40, 28]
-#r_size_ = 10
-#errors_ = k_fold_CV_for_decision_tree_pruning(h_df[features], HD_dummy, k=5, alpha=alphas, sizes=sizes_, r_size=r_size_,
+#my_tree = DecisionTree(h_df[features], HD_dummy, s_div=20, max_leaf_size=10, criterion='Gini')
+#y_cl_pred, y_cl = my_tree.predict(h_df[features][::2])
+#my_tree.bagging(B=100)
+#my_tree.bagging_predict(h_df[features][::2])
+# alphas = [0., 0.5052631578947369, 0.5894736842105263, 0.7578947368421053]
+# sizes_ = [58, 56, 40, 28]
+# r_size_ = 10
+
+# errors_ = k_fold_CV_for_decision_tree_pruning(h_df[features], HD_dummy, k=5, alpha=alphas, sizes=sizes_, r_size=r_size_,
 #                                              criterion='gini')
