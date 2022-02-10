@@ -149,6 +149,7 @@ def confusion_matrix(predictions, references, print_=False, ROC_=False):
 # K-nearest neighbors (KNN)
 def KNN(test_point_, input_data_, output_data, K, normalize=False, show=False, dummy=False):
     """
+    # TODO: currently only for classification -> add regression
     Function applies K Nearest Neighbors method.
     Args:
         test_point_: test point location (np.array)
