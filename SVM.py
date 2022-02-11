@@ -3,13 +3,12 @@ import cvxopt
 # TODO: Pack functions into class.
 
 
-def SVM(X, y, S_=2):
+def SVM(X, y, S_):
     """
     function determine SVM separation hyperplane parameters w and b
     Args:
         X: training predictor data
         y: training reference output data
-        S_: ?
 
     Returns: w, bias b, margin M
 
@@ -33,8 +32,7 @@ def SVM(X, y, S_=2):
     # calculation of w vector
     w = np.dot((y * alphas).T, X)[0]
     # calculation of bias b
-    # pomen parametra S!!
-    S = np.where(alphas.flatten() > sorted(alphas.flatten())[-S_])
+    S = np.where(alphas.flatten() > sorted(alphas.flatten())[-S_]) # alphas of support vectors (1e1,1e2) are much bigger then the other (1e-8,1e-9)
     b = np.mean(y[S] - X[S, :]@w.T)
     # margin calculaton
     M = 1/np.sqrt(sum(w**2))
@@ -66,8 +64,11 @@ def SVM_predict(X, w, b):
     Returns: prediction
 
     """
-    value = get_SVM_val(X, w, b)
-    if value > 0:
-        return 1
-    else:
-        return -1
+    pred = np.zeros(X.shape[0])
+    for i in range(X.shape[0]):
+        value = get_SVM_val(X[i, :], w, b)
+        if value > 0:
+            pred[i] = 1
+        else:
+            pred[i] = -1
+    return pred

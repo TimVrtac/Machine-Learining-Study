@@ -3,6 +3,10 @@ import cvxopt
 
 
 class SVM:
+    """
+    Currently actually applies the Maximum Margin Classifier, and not the actual SVM.
+    """
+
     def __init__(self, X, y, S_=2):
         """
         Args:
@@ -14,15 +18,14 @@ class SVM:
         self.y = y
         self.S_ = S_
         self.alphas = None
-        self.w = None
-        self.b = None
-        self.M = None
+        self.w, self.b, self.M = None, None, None
 
     def train(self):
         """
         Function trains SVM model on input training data - it calculates hyperplane params and max. margin
-        Returns: w (np.array; hyperplane coefficients), b (float; hyperplane bias), M (float; max. margin)
+        Returns: w (np.array; hyperplane weight vector), b (float; hyperplane bias), M (float; max. margin)
         """
+        # preparing optimization parameters
         n = self.X.shape[0]
         H = np.dot(self.y * self.X, (self.y * self.X).T)
         q = np.repeat([-1.0], n)[..., None]
@@ -30,19 +33,15 @@ class SVM:
         b = 0.0
         G = np.negative(np.eye(n))
         h = np.zeros(n)
-        P = cvxopt.matrix(H)
-        q = cvxopt.matrix(q)
-        G = cvxopt.matrix(G)
-        h = cvxopt.matrix(h)
-        A = cvxopt.matrix(A)
+        # generation of cvxopt objects
+        P, q, G, h, A = cvxopt.matrix(H), cvxopt.matrix(q), cvxopt.matrix(G), cvxopt.matrix(h), cvxopt.matrix(A)
         b = cvxopt.matrix(b)
         # solution of optimization problem using cvxopt's QP optimization
         sol = cvxopt.solvers.qp(P, q, G, h, A, b)
         self.alphas = np.array(sol["x"])
-        # calculation of w vector
+        # calculation of weight vector w
         self.w = np.dot((self.y * self.alphas).T, self.X)[0]
         # calculation of bias b
-        # pomen parametra S!!
         S = np.where(self.alphas.flatten() > sorted(self.alphas.flatten())[-self.S_])
         self.b = np.mean(self.y[S] - self.X[S, :] @ self.w.T)
         # margin calculaton
@@ -58,7 +57,7 @@ class SVM:
         """
         pred = np.zeros(X_test.shape[0])
         for i in range(X_test.shape[0]):
-            value = self.get_SVM_val(X_test[i,:])
+            value = self.get_SVM_val(X_test[i, :])
             if value > 0:
                 pred[i] = 1
             else:
