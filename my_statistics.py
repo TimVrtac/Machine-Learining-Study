@@ -1,11 +1,5 @@
-import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
-import pathlib
-import os
-import sys
-import seaborn as sns
-from mpl_toolkits.mplot3d import Axes3D
 import prettytable
 from tqdm.notebook import tqdm
 import random
@@ -56,7 +50,7 @@ def classification_error_rate(pred_, ref_):
         float: classification error rate
     """
     n = ref_.shape[0]
-    return 1/n*(n-np.count_nonzero(pred_==ref_))
+    return 1/n*(n-np.count_nonzero(pred_ == ref_))
 
 
 def stdev(X, type_='sample'):
@@ -116,28 +110,40 @@ def euclidean(P1, P2):
     return np.sqrt(sum(P1**2+P2**2))
 
 
-def confusion_matrix(predictions, references, print_=False, ROC_=False):
+def confusion_matrix(predictions, references, classes=(0, 1), print_=False):
     """
-    Function calculates values of confusion matrix values together with sensitivity, specificity and overall accuracy and prints the result in the table form.
+    Function calculates values of confusion matrix values together with sensitivity, specificity and overall accuracy
+    and prints the result in the table form.
+    Args:
+        predictions: numeric array of predictions
+        references: numeric array of referenca values
+        classes: tuple of classes. Defoults to (0, 1)
+        print_: if True, confusion matrix is printed
+
+    Returns:
+
+    """
+    """
+    
     :param predictions: array of predictions - values 0 or 1 (numpy array)
     :param references: array of references - values 0 or 1 (numpy array)
 
     return table, sensitivity, specificity, overall accuracy
     """
-    TN = np.count_nonzero((predictions==0)&(references==0))
-    TP = np.count_nonzero((predictions==1)&(references==1))
-    FN = np.count_nonzero((predictions==0)&(references==1))
-    FP = np.count_nonzero((predictions==1)&(references==0))
+    TN = np.count_nonzero((predictions == classes[0]) & (references == classes[0]))
+    TP = np.count_nonzero((predictions == classes[1]) & (references == classes[1]))
+    FN = np.count_nonzero((predictions == classes[0]) & (references == classes[1]))
+    FP = np.count_nonzero((predictions == classes[1]) & (references == classes[0]))
     sensitivity = TP/(TP + FN)
     specificity = TN/(TN + FP)
     overall = (TP + TN)/(TP+TN+FP+FN)
     table = prettytable.PrettyTable()
-    table.field_names = ['True status','No','Yes', 'Sums']
-    table.add_rows([['Prediciton','','',''],
-               ['No', f' TN = {TN}', f' FN = {FN}',TN + FN],
-               ['Yes', f' FP = {FP}', f' TP = {TP}', TP + FP],
-               ['', f'specificity = {specificity*100:.2f} %', f'sensitivity = {sensitivity*100:.2f} %',''],
-               ['Sums', TN + FN, FN + TP, TN+FN+TP+FP]])
+    table.field_names = ['True status', 'No', 'Yes', 'Sums']
+    table.add_rows([['Prediciton', '', '', ''],
+                    ['No', f' TN = {TN}', f' FN = {FN}', TN + FN],
+                    ['Yes', f' FP = {FP}', f' TP = {TP}', TP + FP],
+                    ['', f'specificity = {specificity*100:.2f} %', f'sensitivity = {sensitivity*100:.2f} %', ''],
+                    ['Sums', TN + FN, FN + TP, TN+FN+TP+FP]])
     if print_:
         print(table)
 
@@ -145,7 +151,7 @@ def confusion_matrix(predictions, references, print_=False, ROC_=False):
 
 
 # STATISTICAL LEARNING
-#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------------------------------
 # K-nearest neighbors (KNN)
 def KNN(test_point_, input_data_, output_data, K, normalize=False, show=False, dummy=False):
     """
@@ -158,16 +164,17 @@ def KNN(test_point_, input_data_, output_data, K, normalize=False, show=False, d
         K: number of points taken into account by KNN method
         normalize: iput_data is normalized to the values from 0 to 1
         show: Plot graph of points
+        dummy: if True the dummy variables are generated for output_data
 
     Returns: category of test_point
 
     """
     if normalize:
-        norm_basis = abs(input_data_).max(axis=0) # values for normalization
+        norm_basis = abs(input_data_).max(axis=0)  # values for normalization
         input_data = input_data_.copy()
         test_point = test_point_.copy()
-        to_norm = norm_basis != 0 # predictors to be normalized
-        input_data[:,to_norm] = input_data_[:,to_norm] / norm_basis[to_norm]
+        to_norm = norm_basis != 0  # predictors to be normalized
+        input_data[:, to_norm] = input_data_[:, to_norm] / norm_basis[to_norm]
         test_point[to_norm] = test_point_[to_norm] / norm_basis[to_norm]                    
     else:
         input_data = input_data_.copy()
@@ -209,7 +216,6 @@ def KNN(test_point_, input_data_, output_data, K, normalize=False, show=False, d
     return count[0][np.argmax(count[1])]
 
 
-    # k-fold Cross Validation
 def k_fold_split(input_, output_, k):
     """Function splits input and output data for the purpose of k-fold Cross Validation.
 
@@ -238,11 +244,13 @@ def k_fold_split(input_, output_, k):
     return input_folds, output_folds
 
 
-def k_fold_CV_for_KNN_classification(inputs_, outputs_, k=10, K=np.arange(1,10), find_K_opt=False):
-    """Function performs k-fold Cross Validation for the purpose of optimal K value determination in KNN machine learning method.
+def k_fold_CV_for_KNN_classification(inputs_, outputs_, k=10, K=np.arange(1, 10), find_K_opt=False):
+    """Function performs k-fold Cross Validation for the purpose of optimal K value determination in KNN machine
+     learning method.
 
     Args:
-        inputs_ (numpy array): numeric array of input values (n×p matrix) where n is sample size and p is number of predictors.
+        inputs_ (numpy array): numeric array of input values (n×p matrix) where n is sample size and p is number of
+                               predictors.
         outputs_ (numpy array): numeric array of output values
         k (int, optional): number of folds. Defaults to 10.
         K (list/numpy array, optional): Possible K values. Defaults to np.arange(1,10).
@@ -264,9 +272,9 @@ def k_fold_CV_for_KNN_classification(inputs_, outputs_, k=10, K=np.arange(1,10),
             ind_list = list(np.arange(k))
             ind_list.remove(i)
             input_folds_ = input_f[ind_list]
-            input_folds_ = np.concatenate(input_folds_.squeeze(),axis=0)
+            input_folds_ = np.concatenate(input_folds_.squeeze(), axis=0)
             output_folds_ = output_f[ind_list]
-            output_folds_ = np.concatenate(output_folds_.squeeze(),axis=0)
+            output_folds_ = np.concatenate(output_folds_.squeeze(), axis=0)
             for j in range(input_f[i].shape[0]):
                 k_pred[j] = KNN(pred_fold_[j], input_folds_, output_folds_, K=k_, normalize=True)
             errors_.append(classification_error_rate(k_pred, ref_fold_))
@@ -293,11 +301,13 @@ def lin_discriminant_function(x, μ, Σ, π):
     """
     return x.T@np.linalg.inv(Σ)@μ-0.5*μ.T@np.linalg.inv(Σ)@μ + np.log(π)
 
+
 def linear_discriminant_analysis(input_data, predictors, outputs):
     """Function applies LDA method. It learns from predictors and outputs data and make predictions for input_data.
 
     Args:
-        input_data (np.array): predictor values for which we would like to perfrom predictions (1 column for 1 predictor) (1D or 2D np.array)
+        input_data (np.array): predictor values for which we would like to perform predictions (1 column for 1
+                               predictor) (1D or 2D np.array)
         predictors (np.array): numeric array of predictor values (1 column for 1 predictor) (1D or 2D np.array)
         outputs (np.array): numeric array of known system outputs
         
@@ -308,16 +318,16 @@ def linear_discriminant_analysis(input_data, predictors, outputs):
     mu = np.zeros((len(categories), predictors.shape[1]))
     pi = np.zeros(len(categories))
     for j, i in enumerate(categories):
-        avg = np.average(predictors[outputs==i], axis=0)
+        avg = np.average(predictors[outputs == i], axis=0)
         mu[j, :] = avg
-        pi[j] = predictors[outputs==i].shape[0]/predictors.shape[0]
+        pi[j] = predictors[outputs == i].shape[0]/predictors.shape[0]
     p_matrix = np.cov(predictors.astype(float).T)
     # discriminant function
     predictions_ = []
-    for j,i in enumerate(input_data):
+    for j, i in enumerate(input_data):
         delta_ = []
         for k in range(len(categories)):
-            delta_.append(lin_discriminant_function(i, mu[k,:], p_matrix, pi[k]))
+            delta_.append(lin_discriminant_function(i, mu[k, :], p_matrix, pi[k]))
         category_ind = np.argmax(delta_)
         predictions_.append(categories[category_ind])
     
@@ -330,7 +340,8 @@ def LDA_decision_boundary_mod(input_data, predictors, outputs,
     """LDE for 2 class prediction which enables Bayes decision boundary modification.
     
     Args:
-        input_data (np.array): predictor values for which we would like to perfrom predictions (1 column for 1 predictor)
+        input_data (np.array): predictor values for which we would like to perfrom predictions (1 column for 1
+                               predictor)
                                (1D or 2D np.array)
         predictors (np.array): numeric array of predictor values (1 column for 1 predictor) (1D or 2D np.array)
         outputs (np.array): numeric array of known system outputs
@@ -346,16 +357,16 @@ def LDA_decision_boundary_mod(input_data, predictors, outputs,
     mu = np.zeros((len(categories), predictors.shape[1]))
     pi = np.zeros(len(categories))
     for j, i in enumerate(categories):
-        avg = np.average(predictors[outputs==i], axis=0)
+        avg = np.average(predictors[outputs == i], axis=0)
         mu[j, :] = avg
-        pi[j] = predictors[outputs==i].shape[0]/predictors.shape[0]
+        pi[j] = predictors[outputs == i].shape[0]/predictors.shape[0]
     p_matrix = np.cov(predictors.astype(float).T)
     # discriminant function
     predictions_ = []
-    for j,i in enumerate(input_data):
+    for j, i in enumerate(input_data):
         delta_ = []
         for k in range(len(categories)):
-            delta_.append(lin_discriminant_function(i, mu[k,:],
+            delta_.append(lin_discriminant_function(i, mu[k, :],
                                                     p_matrix, pi[k]))
         delta_ratio = delta_[decision_boundary[0]]/(delta_[decision_boundary[0]] + delta_[not decision_boundary[0]])
         if delta_ratio > decision_boundary[1]:
@@ -379,16 +390,16 @@ def quad_discriminant_function(x, μ, Σ, π):
     Returns:
         float: values of discriminant function
     """
-    return -0.5*x.T@np.linalg.inv(Σ)@x+\
-            x.T@np.linalg.inv(Σ)@μ-0.5*μ.T@np.linalg.inv(Σ)@μ -\
-            0.5*np.log(np.linalg.det(Σ)) + np.log(π)
+    return -0.5*x.T@np.linalg.inv(Σ)@x + x.T@np.linalg.inv(Σ)@μ-0.5*μ.T@np.linalg.inv(Σ)@μ - \
+        0.5*np.log(np.linalg.det(Σ)) + np.log(π)
+
 
 def quadratic_discriminant_analysis(input_data, predictors, outputs):
     """Function applies QDA method for making predictions
 
     Args:
-        input_data (np.array): predictor values for which we would like to perfrom predictions (1 column for 1 predictor)
-                               (1D or 2D np.array)
+        input_data (np.array): predictor values for which we would like to perfrom predictions (1 column for 1
+        predictor) (1D or 2D np.array)
         predictors (np.array): numeric array of predictor values (1 column for 1 predictor) (1D or 2D np.array)
         outputs (np.array): numeric array of known system outputs
         
@@ -400,17 +411,16 @@ def quadratic_discriminant_analysis(input_data, predictors, outputs):
     pi = np.zeros(len(categories))
     p_matrix = np.zeros((len(categories), predictors.shape[1], predictors.shape[1]))
     for j, i in enumerate(categories):
-        avg = np.average(predictors[outputs==i], axis=0)
+        avg = np.average(predictors[outputs == i], axis=0)
         mu[j, :] = avg
-        pi[j] = predictors[outputs==i].shape[0]/predictors.shape[0]
-        p_matrix[j, :, :] = np.cov(predictors[outputs==i].astype(float).T)
+        pi[j] = predictors[outputs == i].shape[0]/predictors.shape[0]
+        p_matrix[j, :, :] = np.cov(predictors[outputs == i].astype(float).T)
     # discriminant function
     predictions_ = []
-    for j,i in enumerate(tqdm(input_data)):
+    for j, i in enumerate(tqdm(input_data)):
         delta_ = []
         for k in range(len(categories)):
-            delta_.append(quad_discriminant_function(i, mu[k,:],
-                                                    p_matrix[k,:,:], pi[k]))
+            delta_.append(quad_discriminant_function(i, mu[k, :], p_matrix[k, :, :], pi[k]))
         category_ind = np.argmax(delta_)
         predictions_.append(categories[category_ind])
     
