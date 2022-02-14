@@ -425,4 +425,44 @@ def quadratic_discriminant_analysis(input_data, predictors, outputs):
         predictions_.append(categories[category_ind])
     
     return np.array(predictions_)
+
+
+# general k-Fold CV
+def k_fold_CV(inputs_, outputs_, k, K, prediction_model):
+    # TODO: passing additional arguments into prediction_model function
+    """Function performs k-fold Cross Validation for the purpose of optimal K value determination of prediction_model function
+
+    Args:
+        inputs_ (numpy array): numeric array of input values (n×p matrix) where n is sample size and p is number of
+                               predictors.
+        outputs_ (numpy array): numeric array of output values
+        k (int): number of folds. Defaults to 10.
+        K (list/numpy array): Parameter for which we search the value which provides minimum error.
+                                        Possible K values.
+        prediction_model (function): function with parameters: x_test, x_train, y_train which performs predictions for given
+                                     input data.
+
+    Returns:
+        list: error rates corresponding to the input K values
+    """
+    # data split
+    input_f, output_f = k_fold_split(inputs_, outputs_, k=k)
+    error_rates = []
+    for k_ in tqdm(K, desc=f'Main loop'):
+        errors_ = []
+        for i in tqdm(range(k), desc=f'loop for K = {k_}: ', leave=False):
+            k_pred = np.zeros(input_f[i].shape[0])
+            pred_fold_ = input_f[i]
+            ref_fold_ = output_f[i]
+            ind_list = list(np.arange(k))
+            ind_list.remove(i)
+            input_folds_ = input_f[ind_list]
+            input_folds_ = np.concatenate(input_folds_.squeeze(), axis=0)
+            output_folds_ = output_f[ind_list]
+            output_folds_ = np.concatenate(output_folds_.squeeze(), axis=0)
+            for j in range(input_f[i].shape[0]):
+                k_pred[j] = prediction_model(pred_fold_[j], input_folds_, output_folds_, K=k_,)
+            errors_.append(classification_error_rate(k_pred, ref_fold_))
+        error_rates.append(np.average(errors_))
+    return error_rates
     
