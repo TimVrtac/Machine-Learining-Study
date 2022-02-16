@@ -2,6 +2,7 @@ import numpy as np
 import cvxopt
 import my_statistics as ms
 from tqdm.notebook import tqdm
+import pandas as pd
 
 
 class SVM:
@@ -80,9 +81,11 @@ class SVM:
             self.b = 0
             for i in range(self.X[self.sv].shape[0]):
                 if self.kernel == 'polynomial':
-                    self.b += y_sv[i] - sum(self.alphas[self.sv][i]*y_sv[i]*self.polynomial_kernel(self.X[self.sv][i], self.X[self.sv]))
+                    self.b += y_sv[i] - sum(self.alphas[self.sv][i]*y_sv[i]*self.polynomial_kernel(self.X[self.sv][i],
+                                                                                                   self.X[self.sv]))
                 elif self.kernel == 'radial':
-                    self.b += y_sv[i] - sum(self.alphas[self.sv][i]*y_sv[i]*self.radial_kernel(self.X[self.sv][i], self.X[self.sv]))
+                    self.b += y_sv[i] - sum(self.alphas[self.sv][i]*y_sv[i]*self.radial_kernel(self.X[self.sv][i],
+                                                                                               self.X[self.sv]).T)
             self.b /= self.X[self.sv].shape[0]
         # margin calculaton
         self.M = 1 / np.sqrt(sum((np.dot((self.y * self.alphas).T, self.X)[0]) ** 2))
@@ -130,11 +133,15 @@ class SVM:
         """
         if self.gamma is None:
             print('Add radial kernel parameter gamma')
-        exponent_matrix = np.zeros((X1.shape[0], X2.shape[0], X1.shape[1]))
+        if len(X1.shape) == 1:
+            X1 = X1[np.newaxis]
+        elif len(X2.shape) == 1:
+            X2 = X2[np.newaxis]
+        exponent_matrix = np.zeros((X1.shape[0], X2.shape[0], X2.shape[1]))
         for i in range(X1.shape[0]):
             for j in range(X2.shape[0]):
                 exponent_matrix[i, j, :] = (X1[i, :] - X2[j, :])**2
-        exponents = -self.gamma * np.sum(exponent_matrix, axis=2)
+        exponents = -self.gamma * np.sum(exponent_matrix, axis=-1)
         return np.exp(exponents)
 
     def polynomial_kernel(self, X1, X2):
@@ -184,3 +191,18 @@ def k_fold_CV_for_SVM(inputs_, outputs_, C, k=10, kernel='linear'):
         error_rates.append(np.average(errors_))
     C_opt = C[np.argmin(error_rates)]
     return error_rates, C_opt
+
+# TODO: Add One-Versus-one Classification, One-Versus-All Classification
+
+# h_df = pd.read_csv('Gradivo/Heart.csv')
+# h_df.drop(labels='Unnamed: 0', axis=1, inplace=True)
+# h_df.head(2)
+# HD_dummy = np.zeros(h_df.shape[0])
+# HD_dummy[h_df.AHD == 'Yes'] = 1
+# HD_dummy[h_df.AHD == 'No'] = -1
+# features = ['Age', 'Sex', 'RestBP', 'Chol', 'Fbs', 'RestECG', 'MaxHR']
+# hd_svm = SVM(np.array(h_df[features][::2]), HD_dummy[::2], C=2.65, kernel = 'radial',d=2, gamma=1e-1)
+# hd_svm.train()
+# h_pred = hd_svm.predict(np.array(h_df[features][1::10]))
+# print(h_pred.shape, HD_dummy[1::10].shape)
+# ms.confusion_matrix(h_pred, HD_dummy[1::10], classes=[-1, 1], print_=True)
