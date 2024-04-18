@@ -9,6 +9,7 @@ import random
 
 
 class DecisionTree:
+    # TODO: Add boosting, Bayesian Additive Regression Trees
     def __init__(self, training_inputs, training_outputs, s_div, criterion, max_leaf_size):
         """
         DecisionTree class' init function
@@ -106,6 +107,7 @@ class DecisionTree:
                     sizes.append(R_x_data[i].shape[0])
 
             R_x_temp = R_x_data.copy()
+            print(sizes)
             R_size = max(sizes)
             # print(sizes)
         Y_outputs = {}
@@ -655,14 +657,14 @@ def k_fold_CV_for_decision_tree_pruning(inputs_, outputs_, alpha, criterion,
     return error_rates
 
 
-h_df = pd.read_csv('C:/Users/timvr/Documents/Doktorat/Introduction to statistical Learning/Gradivo/Heart.csv')
-h_df.drop(labels='Unnamed: 0', axis=1, inplace=True)
-features = ['Age', 'Sex', 'RestBP', 'Chol', 'Fbs', 'RestECG', 'MaxHR',
-            'ExAng', 'Oldpeak', 'Slope', 'Ca']
-HD_dummy = np.zeros(h_df.shape[0])
-HD_dummy[h_df.AHD == 'Yes'] = 1
-HD_dummy[h_df.AHD == 'No'] = 0
-my_tree = DecisionTree(h_df[features][1::2], HD_dummy[1::2], s_div=20, max_leaf_size=10, criterion='Gini')
+#h_df = pd.read_csv('C:/Users/timvr/Documents/Doktorat/Introduction to statistical Learning/Gradivo/Heart.csv')
+#h_df.drop(labels='Unnamed: 0', axis=1, inplace=True)
+#features = ['Age', 'Sex', 'RestBP', 'Chol', 'Fbs', 'RestECG', 'MaxHR',
+#            'ExAng', 'Oldpeak', 'Slope', 'Ca']
+#HD_dummy = np.zeros(h_df.shape[0])
+#HD_dummy[h_df.AHD == 'Yes'] = 1
+#HD_dummy[h_df.AHD == 'No'] = 0
+#my_tree = DecisionTree(h_df[features][1::2], HD_dummy[1::2], s_div=20, max_leaf_size=10, criterion='Gini')
 
 # def boosting(x_in, y_in, d, B):
 

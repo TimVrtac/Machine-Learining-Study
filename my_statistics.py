@@ -465,4 +465,9 @@ def k_fold_CV(inputs_, outputs_, k, K, prediction_model):
             errors_.append(classification_error_rate(k_pred, ref_fold_))
         error_rates.append(np.average(errors_))
     return error_rates
-    
+
+# TODO: add logistic reg.
+# TODO: implement shrinking methods to remove redundant predictors: best subset selection, stepwise selection,
+# ridge regression, the lasso, dimension reduction
+# TODO: add GAMs along with different shapes of functions f(X) - polynomial regression, step function, regression
+# splines, smoothing splines, local regression

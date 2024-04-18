@@ -1,0 +1,5 @@
+notebooks-ni/
+__pycache__/
+.idea/
+.ipynb_checkpoints/
+allJupyter/
